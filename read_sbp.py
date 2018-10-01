@@ -1,10 +1,13 @@
+#!/usr/bin/env python
+import rospy
+#from std_msgs.msg import String
+from sensor_msgs.msg import NavSatFix, NavSatStatus
 from sbp.client.drivers.pyserial_driver import PySerialDriver
 from sbp.client import Handler, Framer
 from sbp.navigation import SBP_MSG_BASELINE_NED, SBP_MSG_POS_LLH, \
     SBP_MSG_VEL_NED, SBP_MSG_GPS_TIME
 
 import argparse
-
 
 class RtkMessage:
     '''
@@ -49,7 +52,18 @@ def read_rtk(port='/dev/ttyUSB0', baud=230400):
     Returns:
         None
     '''
-
+    
+    #setupRosPublisher
+    publishers = {}
+    publishers['pose_fix'] = rospy.Publisher(rospy.get_name() + '/NavSatFix',
+                                                 NavSatFix, queue_size=10)
+    #pub = rospy.Publisher('chatter', String, queue_size=10)
+    rospy.init_node('piksi')#, anonymous=True)
+    rospy.sleep(0.5)  # Wait for a while for init to complete before printing.
+    rospy.loginfo(rospy.get_name() + " start")
+    
+    #rate = rospy.Rate(10) #10hz
+    
     print('Reading from {} at {}'.format(port, baud))
 
     m = RtkMessage()
@@ -61,6 +75,7 @@ def read_rtk(port='/dev/ttyUSB0', baud=230400):
     with PySerialDriver(port, baud) as driver:
         with Handler(Framer(driver.read, None, verbose=True)) as source:
             try:
+            #while not rospy.is_shutdown():
                 msg_list = [SBP_MSG_BASELINE_NED, SBP_MSG_POS_LLH,
                             SBP_MSG_VEL_NED, SBP_MSG_GPS_TIME]
                 for msg, metadata in source.filter(msg_list):
@@ -91,10 +106,28 @@ def read_rtk(port='/dev/ttyUSB0', baud=230400):
 
                     else:
                         pass
-
-                    print(m.whole_string())
+                    
+                    # Navsatfix message.
+                    navsatfix_msg = NavSatFix()
+                    navsatfix_msg.header.stamp = rospy.Time.now()
+                    navsatfix_msg.header.frame_id = 'gps'
+                    navsatfix_msg.position_covariance_type = NavSatFix.COVARIANCE_TYPE_UNKNOWN
+                    navsatfix_msg.status.service = NavSatStatus.SERVICE_GPS
+                    navsatfix_msg.latitude = m.lat
+                    navsatfix_msg.longitude = m.lon
+                    navsatfix_msg.altitude = m.h
+                    navsatfix_msg.status.status = NavSatStatus.STATUS_FIX
+                    navsatfix_msg.position_covariance = [1.0, 0, 0,
+                                                         0, 1.0, 0,
+                                                         0, 0, 1.0]
+                    
+                    publishers['pose_fix'].publish(navsatfix_msg)
+                    #print(m.whole_string())
                     # f.write(line)
                     # f.write('\n')
+                    
+                    if rospy.is_shutdown():
+                        break
 
             except KeyboardInterrupt:
                 pass
@@ -103,20 +136,23 @@ def read_rtk(port='/dev/ttyUSB0', baud=230400):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=(
-            'Opens and reads the output of SwiftNav Piksi. \
-            Developed based on Swift Navigation SBP example.'))
-    parser.add_argument(
-        '-p', '--port',
-        default=['/dev/ttyUSB0'],
-        nargs=1,
-        help='specify the serial port to use [default = \'/dev/ttyUSB0\']')
-    parser.add_argument(
-        '-b', '--baud',
-        default=[230400],
-        nargs=1,
-        help='specify the baud rate [default = 230400]')
-    args = parser.parse_args()
+    try:
+        parser = argparse.ArgumentParser(
+            description=(
+                'Opens and reads the output of SwiftNav Piksi. \
+                Developed based on Swift Navigation SBP example.'))
+        parser.add_argument(
+            '-p', '--port',
+            default=['/dev/ttyUSB0'],
+            nargs=1,
+            help='specify the serial port to use [default = \'/dev/ttyUSB0\']')
+        parser.add_argument(
+            '-b', '--baud',
+            default=[230400],
+            nargs=1,
+            help='specify the baud rate [default = 230400]')
+        args = parser.parse_args()
 
-    read_rtk(args.port[0], args.baud[0])
+        read_rtk(args.port[0], args.baud[0])
+    except rospy.ROSInterruptException:
+        pass
