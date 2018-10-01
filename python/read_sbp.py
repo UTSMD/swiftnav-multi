@@ -36,7 +36,7 @@ class RtkMessage:
                 self.d, self.v_n, self.v_e, self.v_d, self.flag))
 
 
-def read_rtk(port='/dev/ttyUSB0', baud=115200):
+def read_rtk(port='/dev/ttyUSB0', baud=230400):
     '''
     Reads the RTK output from SwiftNav Piksi, parses the messege and prints.
     Piksi's must be configured to give RTK message through the serial port.
@@ -44,7 +44,7 @@ def read_rtk(port='/dev/ttyUSB0', baud=115200):
 
     Args:
         port: serial port [[default='/dev/ttyUSB0']
-        baud: baud rate [default=115200]
+        baud: baud rate [default=230400]
 
     Returns:
         None
@@ -114,9 +114,9 @@ if __name__ == "__main__":
         help='specify the serial port to use [default = \'/dev/ttyUSB0\']')
     parser.add_argument(
         '-b', '--baud',
-        default=[115200],
+        default=[230400],
         nargs=1,
-        help='specify the baud rate [default = 115200]')
+        help='specify the baud rate [default = 230400]')
     args = parser.parse_args()
 
     read_rtk(args.port[0], args.baud[0])
